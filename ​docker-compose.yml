@@ -34,3 +34,22 @@ volumes:
   postgres_data:
   static_volume:
   media_volume:
+
+version: '3'
+services:
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=rsu_db
+      - POSTGRES_USER=rsu_user
+      - POSTGRES_PASSWORD=rsu_password
+  web:
+    build: .
+    volumes:
+      - .:/app
+    ports:
+      - "80:8000"
+    depends_on:
+      - db
+    command: python manage.py runserver 0.0.0.0:8000
+
