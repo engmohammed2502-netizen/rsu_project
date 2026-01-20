@@ -15,7 +15,7 @@ sudo systemctl enable --now docker
 
 
 # جلب الكود من GitHub
-git clone [رابط_المستودع_الخاص_بك]
+git clone http://github.com/engmohammed2502-netizen/rsu_project.git
 
 # الدخول إلى المجلد الرئيسي (الذي يحتوي على settings.py و Dockerfile)
 cd rsu_project
