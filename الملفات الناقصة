@@ -73,4 +73,23 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
 
+# تحذير: هذا سيمسح البيانات القديمة وهو ضروري في هذه المرحلة
+sudo docker-compose exec db psql -U postgres -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
+
+
+
+
+
+sudo docker-compose exec web python manage.py makemigrations library
+
+
+
+
+sudo docker-compose exec web python manage.py migrate
+
+
+
+
+sudo docker-compose exec web python manage.py createsuperuser
 
