@@ -32,3 +32,45 @@ sudo docker-compose exec web python manage.py createsuperuser
 ​Password: (اكتب كلمة مرور قوية، لن تظهر الحروف أثناء الكتابة وهذا طبيعي لدواعي الأمان، اكتبها واضغط Enter).
 ​كرر كلمة المرور.
 ​بعدها، اذهب للمتصفح واكتب: http://192.168.111.129:8080/admin (أو استخدم IP الويندوز إذا كنت من جهاز آخر). ستظهر لك لوحة تحكم Django الجاهزة!
+
+
+
+اعدادات ملف الضبط
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'library',  # <--- أضف هذا السطر هنا
+]
+
+
+
+
+
+# --- إعدادات اللغة والتوقيت ---
+LANGUAGE_CODE = 'ar'
+TIME_ZONE = 'Africa/Khartoum'  # أو توقيت دولتك
+USE_I18N = True
+USE_TZ = True
+
+# --- تعريف نموذج المستخدم المخصص ---
+AUTH_USER_MODEL = 'library.User'
+
+# --- إعدادات الملفات (150 ميقا كحد أقصى) ---
+DATA_UPLOAD_MAX_MEMORY_SIZE = 157286400  # 150 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 157286400  # 150 MB
+
+# --- إعدادات الجلسة (للزوار 30 دقيقة) ---
+SESSION_COOKIE_AGE = 1800  # 30 minutes
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# --- إعدادات تسجيل الدخول ---
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'login'
+
+
