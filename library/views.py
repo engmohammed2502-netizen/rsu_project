@@ -1,69 +1,161 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.utils import timezone
-from .models import *
 from django.contrib import messages
-from datetime import timedelta
+from django.utils import timezone
+from django.http import HttpResponse, Http404
+from .models import User, Course, CourseFile, ForumPost, ForumReply, ActivityLog, DEPARTMENTS, SEMESTERS
+import os
 
-def custom_login(request):
+# --- 1. دوال المساعدة (Helpers) ---
+def log_activity(user, action, request):
+    ip = request.META.get('REMOTE_ADDR')
+    ActivityLog.objects.create(user=user, action=action, ip_address=ip)
+
+def is_guest(request):
+    return request.session.get('is_guest', False)
+
+# --- 2. المصادقة (Auth) ---
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('home')
+        
     if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
+        user_id = request.POST.get('username') # الرقم الجامعي أو اسم الدكتور
+        password = request.POST.get('password')
         
-        # البحث عن المستخدم للتحقق من التجميد قبل فحص الباسورد
-        try:
-            user_obj = User.objects.get(username=username)
-            if user_obj.is_frozen:
-                # فك التجميد إذا مر يوم
-                if timezone.now() > user_obj.last_failed_attempt + timedelta(days=1):
-                    user_obj.is_frozen = False
-                    user_obj.failed_attempts = 0
-                    user_obj.save()
-                else:
-                    return render(request, 'login.html', {'error': 'حسابك مجمد. الرجاء التواصل مع الإدارة.'})
-        except User.DoesNotExist:
-            pass # سيتعامل معه authenticate
-
-        user = authenticate(request, username=username, password=password)
-        
-        # تسجيل المحاولة في السجل
-        ip = request.META.get('REMOTE_ADDR')
+        # محاولة تسجيل الدخول
+        user = authenticate(request, username=user_id, password=password)
         
         if user is not None:
-            # تصفير المحاولات الفاشلة
-            user.failed_attempts = 0
-            user.save()
-            
+            if user.is_frozen:
+                messages.error(request, 'عذراً، تم تجميد حسابك. الرجاء مراجعة الإدارة.')
+                return redirect('login')
+                
             login(request, user)
-            LoginLog.objects.create(user=user, username_attempt=username, ip_address=ip, status='Success')
+            log_activity(user, "تسجيل دخول", request)
             
-            if user.user_type == 'guest':
-                request.session.set_expiry(1800) # 30 دقيقة للضيف
-            
-            if user.user_type == 'root':
+            if user.user_type == 'ROOT':
                 return redirect('root_dashboard')
             return redirect('home')
         else:
-            # منطق الفشل والتجميد
-            try:
-                user_obj = User.objects.get(username=username)
-                user_obj.failed_attempts += 1
-                user_obj.last_failed_attempt = timezone.now()
-                if user_obj.failed_attempts >= 5:
-                    user_obj.is_frozen = True
-                user_obj.save()
-            except User.DoesNotExist:
-                pass
+            # منطق التجميد المؤقت (بسيط) يمكن تطويره لاحقاً
+            messages.error(request, 'بيانات الدخول غير صحيحة')
             
-            LoginLog.objects.create(username_attempt=username, ip_address=ip, status='Failed')
-            return render(request, 'login.html', {'error': 'بيانات غير صحيحة أو تم تجميد الحساب'})
-
-    return render(request, 'login.html')
+    return render(request, 'library/login.html')
 
 def guest_login(request):
-    # إنشاء مستخدم ضيف مؤقت أو استخدام مستخدم ضيف عام
-    guest_name = request.POST.get('guest_name', 'Guest')
-    # (في التطبيق الحقيقي يفضل استخدام Sessions بدون إنشاء User في الداتابيز للضيوف لتجنب الامتلاء)
-    # ولكن للتبسيط سنستخدم حساب ضيف موحد
-    return redirect('home') # يتم التعامل معه في الصلاحيات
+    if request.method == 'POST':
+        name = request.POST.get('guest_name')
+        # إعداد جلسة الضيف
+        request.session['is_guest'] = True
+        request.session['guest_name'] = name
+        request.session.set_expiry(1800) # 30 دقيقة
+        return redirect('home')
+    return redirect('login')
+
+def logout_view(request):
+    if request.user.is_authenticated:
+        log_activity(request.user, "تسجيل خروج", request)
+    logout(request)
+    request.session.flush()
+    return redirect('login')
+
+# --- 3. الصفحات الرئيسية ---
+def home(request):
+    if not request.user.is_authenticated and not is_guest(request):
+        return redirect('login')
+        
+    context = {
+        'departments': DEPARTMENTS,
+        'user_name': request.session.get('guest_name', request.user.first_name if request.user.is_authenticated else "زائر")
+    }
+    return render(request, 'library/home.html', context)
+
+def department_view(request, dept_code):
+    if not request.user.is_authenticated and not is_guest(request):
+        return redirect('login')
+    
+    dept_name = dict(DEPARTMENTS).get(dept_code)
+    context = {'dept_code': dept_code, 'dept_name': dept_name, 'semesters': SEMESTERS}
+    return render(request, 'library/department.html', context)
+
+def semester_view(request, dept_code, sem_id):
+    if not request.user.is_authenticated and not is_guest(request):
+        return redirect('login')
+        
+    courses = Course.objects.filter(department=dept_code, semester=sem_id)
+    dept_name = dict(DEPARTMENTS).get(dept_code)
+    
+    context = {
+        'courses': courses,
+        'dept_name': dept_name,
+        'semester_name': f"السمستر {sem_id}"
+    }
+    return render(request, 'library/semester.html', context)
+
+def course_detail(request, course_id):
+    if not request.user.is_authenticated and not is_guest(request):
+        return redirect('login')
+        
+    course = get_object_or_404(Course, pk=course_id)
+    files = course.files.all().order_by('-upload_date')
+    posts = course.posts.all().order_by('-created_at')
+    
+    # التعامل مع رفع الملفات (للدكاترة والروت فقط)
+    if request.method == 'POST' and 'upload_file' in request.POST:
+        if request.user.is_authenticated and request.user.user_type in ['ADMIN', 'ROOT']:
+            new_file = CourseFile(
+                course=course,
+                title=request.POST.get('title'),
+                file_type=request.POST.get('file_type'),
+                file=request.FILES['file'],
+                uploaded_by=request.user
+            )
+            new_file.save()
+            course.last_update = timezone.now()
+            course.save()
+            messages.success(request, 'تم رفع الملف بنجاح')
+            
+    return render(request, 'library/course_detail.html', {'course': course, 'files': files, 'posts': posts})
+
+# --- 4. لوحة تحكم الروت (Zero) ---
+@login_required
+def root_dashboard(request):
+    if request.user.user_type != 'ROOT':
+        return redirect('home')
+        
+    # الإحصائيات المطلوبة
+    stats = {
+        'students_count': User.objects.filter(user_type='STUDENT').count(),
+        'professors_count': User.objects.filter(user_type='ADMIN').count(),
+        'files_count': CourseFile.objects.count(),
+        'active_now': ActivityLog.objects.filter(timestamp__gte=timezone.now()-timezone.timedelta(minutes=5)).count(), # تقريبي
+    }
+    
+    logs = ActivityLog.objects.all().order_by('-timestamp')[:20]
+    
+    return render(request, 'library/dashboard.html', {'stats': stats, 'logs': logs})
+
+# --- 5. تحميل الملفات ---
+def download_file(request, file_id):
+    if not request.user.is_authenticated and not is_guest(request):
+        return redirect('login')
+        
+    file_obj = get_object_or_404(CourseFile, pk=file_id)
+    file_path = file_obj.file.path
+    if os.path.exists(file_path):
+        with open(file_path, 'rb') as fh:
+            response = HttpResponse(fh.read(), content_type="application/octet-stream")
+            response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
+            return response
+    raise Http404
+
+@login_required
+def delete_file(request, file_id):
+    file_obj = get_object_or_404(CourseFile, pk=file_id)
+    # التحقق من الصلاحية (صاحب الملف أو الروت)
+    if request.user.user_type == 'ROOT' or request.user == file_obj.uploaded_by:
+        file_obj.delete()
+        messages.success(request, 'تم حذف الملف')
+    return redirect(request.META.get('HTTP_REFERER'))
