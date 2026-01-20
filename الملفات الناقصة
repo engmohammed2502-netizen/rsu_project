@@ -53,7 +53,7 @@ INSTALLED_APPS = [
 
 # --- إعدادات اللغة والتوقيت ---
 LANGUAGE_CODE = 'ar'
-TIME_ZONE = 'Africa/Khartoum'  # أو توقيت دولتك
+TIME_ZONE = 'Africa/Khartoum' 
 USE_I18N = True
 USE_TZ = True
 
