@@ -1,0 +1,34 @@
+touch library/__init__.py
+touch management/__init__.py
+
+
+
+
+ملف .env
+
+DEBUG=True
+SECRET_KEY='django-insecure-put-your-long-secret-key-here'
+# إعدادات قاعدة البيانات
+DB_NAME=postgres
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_HOST=db
+DB_PORT=5432
+
+
+
+
+
+انشاء حساب الroot 
+
+
+
+sudo docker-compose exec web python manage.py createsuperuser
+
+
+سيطلب منك النظام:
+​Username: (اكتب مثلاً admin واضغط Enter).
+​Email: (يمكنك تركه فارغاً أو كتابة إيميلك).
+​Password: (اكتب كلمة مرور قوية، لن تظهر الحروف أثناء الكتابة وهذا طبيعي لدواعي الأمان، اكتبها واضغط Enter).
+​كرر كلمة المرور.
+​بعدها، اذهب للمتصفح واكتب: http://192.168.111.129:8080/admin (أو استخدم IP الويندوز إذا كنت من جهاز آخر). ستظهر لك لوحة تحكم Django الجاهزة!
