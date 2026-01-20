@@ -1,72 +1,119 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
-import datetime
+from django.core.validators import FileExtensionValidator
+import os
 
-# توسيع نموذج المستخدم ليشمل الأنواع المختلفة
+# --- القوائم الثابتة (الخيارات) ---
+USER_TYPES = (
+    ('ROOT', 'Root (Zero)'),
+    ('ADMIN', 'Admin (Professor)'),
+    ('STUDENT', 'Student'),
+    ('GUEST', 'Guest'),
+)
+
+DEPARTMENTS = (
+    ('ELEC', 'الهندسة الكهربائية'),
+    ('CHEM', 'الهندسة الكيميائية'),
+    ('CIVIL', 'الهندسة المدنية'),
+    ('MECH', 'الهندسة الميكانيكية'),
+    ('MED', 'الهندسة الطبية'),
+)
+
+SEMESTERS = [(i, f'السمستر {i}') for i in range(1, 11)]
+
+MATERIAL_TYPES = (
+    ('LECTURE', 'محاضرة'),
+    ('REFERENCE', 'مرجع'),
+    ('EXERCISE', 'تمارين'),
+    ('EXAM', 'امتحانات'),
+)
+
+# --- 1. جدول المستخدمين المخصص ---
 class User(AbstractUser):
-    USER_TYPES = (
-        ('root', 'Root (Zero)'),
-        ('admin', 'Professor (Admin)'),
-        ('student', 'Student'),
-        ('guest', 'Guest'),
-    )
-    user_type = models.CharField(max_length=10, choices=USER_TYPES, default='guest')
+    user_type = models.CharField(max_length=10, choices=USER_TYPES, default='STUDENT')
+    student_id = models.CharField(max_length=12, blank=True, null=True, unique=True, verbose_name="الرقم الجامعي")
+    full_name = models.CharField(max_length=100, verbose_name="الاسم الكامل")
+    
+    # للأمان والتجميد
+    failed_login_attempts = models.IntegerField(default=0)
     is_frozen = models.BooleanField(default=False)
-    failed_attempts = models.IntegerField(default=0)
-    last_failed_attempt = models.DateTimeField(null=True, blank=True)
-    department = models.CharField(max_length=100, blank=True, null=True)
+    frozen_until = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return self.username
+        return self.full_name if self.full_name else self.username
 
-# الأقسام والسمسترات
-class Department(models.Model):
-    name = models.CharField(max_length=100) # كهربائية، مدنية..
-    def __str__(self): return self.name
-
-class Semester(models.Model):
-    number = models.IntegerField() # 1 to 10
-    def __str__(self): return f"Semester {self.number}"
-
-# المواد
+# --- 2. جدول المواد الدراسية ---
 class Course(models.Model):
-    name = models.CharField(max_length=200)
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    semester = models.ForeignKey(Semester, on_delete=models.CASCADE)
-    professor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, limit_choices_to={'user_type': 'admin'})
-    last_updated = models.DateTimeField(auto_now=True)
-    updated_by = models.ForeignKey(User, related_name='course_updates', on_delete=models.SET_NULL, null=True)
+    name = models.CharField(max_length=100, verbose_name="اسم المادة")
+    code = models.CharField(max_length=20, verbose_name="كود المادة")
+    department = models.CharField(max_length=10, choices=DEPARTMENTS, verbose_name="القسم")
+    semester = models.IntegerField(choices=SEMESTERS, verbose_name="السمستر")
+    professor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, limit_choices_to={'user_type': 'ADMIN'}, verbose_name="أستاذ المقرر")
+    description = models.TextField(blank=True, verbose_name="وصف المادة")
+    last_update = models.DateTimeField(auto_now=True, verbose_name="آخر تحديث")
+    
+    def __str__(self):
+        return f"{self.name} - {self.get_department_display()}"
 
-    def __str__(self): return self.name
-
-# الملفات (محاضرات، تمارين..)
+# --- 3. جدول ملفات المواد (المحتوى) ---
 class CourseFile(models.Model):
-    FILE_TYPES = (
-        ('lecture', 'محاضرة'),
-        ('reference', 'مرجع'),
-        ('exercise', 'تمارين'),
-        ('exam', 'امتحانات'),
-    )
     course = models.ForeignKey(Course, related_name='files', on_delete=models.CASCADE)
-    title = models.CharField(max_length=200)
-    file = models.FileField(upload_to='course_materials/')
-    file_type = models.CharField(max_length=20, choices=FILE_TYPES)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
+    title = models.CharField(max_length=100, verbose_name="عنوان الملف")
+    file_type = models.CharField(max_length=20, choices=MATERIAL_TYPES, verbose_name="نوع الملف")
+    file = models.FileField(
+        upload_to='course_materials/',
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'exe', 'zip', 'ppt', 'pptx', 'docx', 'doc', 'jpg', 'png', 'jpeg'])],
+        verbose_name="الملف"
+    )
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    upload_date = models.DateTimeField(auto_now_add=True)
 
-# المنتدى
+    def __str__(self):
+        return self.title
+
+# --- 4. جدول روابط الفيديو (يوتيوب) ---
+class CourseVideo(models.Model):
+    course = models.ForeignKey(Course, related_name='videos', on_delete=models.CASCADE)
+    title = models.CharField(max_length=100, verbose_name="عنوان الفيديو")
+    url = models.URLField(verbose_name="رابط اليوتيوب")
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+# --- 5. جدول المنتدى (النقاشات) ---
 class ForumPost(models.Model):
     course = models.ForeignKey(Course, related_name='posts', on_delete=models.CASCADE)
     author = models.ForeignKey(User, on_delete=models.CASCADE)
-    content = models.TextField()
-    image = models.ImageField(upload_to='forum_images/', null=True, blank=True)
+    content = models.TextField(verbose_name="نص الرسالة")
+    image = models.ImageField(upload_to='forum_images/', blank=True, null=True, verbose_name="صورة مرفقة")
     created_at = models.DateTimeField(auto_now_add=True)
-    parent = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE)
 
-# سجل الدخول للمتابعة (Dashboard)
-class LoginLog(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
-    username_attempt = models.CharField(max_length=100)
-    ip_address = models.GenericIPAddressField()
+    def __str__(self):
+        return f"Message by {self.author.full_name} in {self.course.name}"
+
+class ForumReply(models.Model):
+    post = models.ForeignKey(ForumPost, related_name='replies', on_delete=models.CASCADE)
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.TextField(verbose_name="الرد")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+# --- 6. جدول الشعارات وإعدادات الموقع ---
+class SiteSettings(models.Model):
+    college_logo = models.ImageField(upload_to='logos/', default='logos/default_college.png')
+    university_logo = models.ImageField(upload_to='logos/', default='logos/default_uni.png')
+    
+    def save(self, *args, **kwargs):
+        # ضمان وجود صف واحد فقط للإعدادات
+        if not self.pk and SiteSettings.objects.exists():
+            return
+        return super(SiteSettings, self).save(*args, **kwargs)
+
+# --- 7. سجل المتابعة للروت (Dashboard Logs) ---
+class ActivityLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=255)
     timestamp = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20) # Success, Failed
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.action} - {self.timestamp}"
