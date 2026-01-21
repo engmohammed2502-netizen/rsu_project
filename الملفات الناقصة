@@ -93,3 +93,54 @@ sudo docker-compose exec web python manage.py migrate
 
 sudo docker-compose exec web python manage.py createsuperuser
 
+
+
+
+
+
+
+
+
+
+
+@login_required
+def add_user_view(request):
+    # مسموح فقط للـ Root (Zero) بإضافة مستخدمين
+    if request.user.user_type != 'ROOT':
+        return redirect('home')
+        
+    if request.method == 'POST':
+        full_name = request.POST.get('full_name')
+        username = request.POST.get('username') # الرقم الجامعي
+        password = request.POST.get('password')
+        user_type = request.POST.get('user_type') # STUDENT أو ADMIN
+        
+        if User.objects.filter(username=username).exists():
+            messages.error(request, 'هذا الرقم الجامعي مسجل مسبقاً!')
+        else:
+            new_user = User.objects.create_user(
+                username=username, 
+                password=password,
+                full_name=full_name,
+                user_type=user_type
+            )
+            log_activity(request.user, f"إضافة مستخدم جديد: {username}", request)
+            messages.success(request, f'تم إضافة {full_name} بنجاح')
+            return redirect('root_dashboard')
+            
+    return render(request, 'library/add_user.html')
+
+
+
+
+
+
+<a href="{% url 'add_user' %}" class="btn btn-primary py-3 mb-2 shadow-sm"><i class="fas fa-user-plus me-2"></i> إضافة طالب أو دكتور جديد</a>
+
+
+
+
+
+
+
+    path('add-user/', views.add_user_view, name='add_user'),
