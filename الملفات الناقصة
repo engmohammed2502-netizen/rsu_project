@@ -1,5 +1,25 @@
-touch library/__init__.py
-touch management/__init__.py
+
+# 1. إيقاف وحذف الحاويات مع الـ Volumes (سيحذف البيانات القديمة)
+sudo docker-compose down -v
+
+# 2. حذف ملفات الميجريشن القديمة لضمان عدم وجود تعارض
+sudo rm library/migrations/000*.py
+
+# 3. بناء الحاوية من جديد
+sudo docker-compose up -d --build
+
+# 4. إنشاء ملفات قاعدة البيانات الجديدة
+sudo docker exec -it rsu_project-web-1 python manage.py makemigrations library
+sudo docker exec -it rsu_project-web-1 python manage.py migrate
+
+# 5. إنشاء مستخدم الـ Root الجديد (تأكد من تسميته Zero)
+sudo docker exec -it rsu_project-web-1 python manage.py createsuperuser
+
+
+
+
+
+
 
 
 
