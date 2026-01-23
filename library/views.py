@@ -57,16 +57,30 @@ def login_view(request):
             messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة')
     return render(request, 'library/login.html')
 
-# >>>>>>>>> بداية الإضافة الجديدة (دالة دخول الزوار) >>>>>>>>>
+
+
 def guest_login(request):
     if request.method == 'POST':
         name = request.POST.get('guest_name')
         if name:
+            # >>>>>>>>> بداية الإضافة المدمجة (Best of Both Worlds) >>>>>>>>>
+            
+            # 1. تسجيل الزائر في قاعدة البيانات (مطلب المشروع الأساسي للتوثيق)
             GuestLog.objects.create(name=name)
+            
+            # 2. إعدادات الجلسة (من كودك القديم لضمان التوافق)
+            request.session['is_guest'] = True
             request.session['guest_name'] = name
+            
+            # 3. تحديد مدة البقاء (30 دقيقة = 1800 ثانية) كما كانت عندك
+            request.session.set_expiry(1800) 
+            
             return redirect('home')
+            # <<<<<<<<< نهاية الإضافة المدمجة <<<<<<<<<
+            
     return render(request, 'library/guest_login.html')
-# <<<<<<<<< نهاية الإضافة الجديدة <<<<<<<<<
+
+
 
 def department_view(request, dept_id):
     dept = get_object_or_404(Department, id=dept_id)
