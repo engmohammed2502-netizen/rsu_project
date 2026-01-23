@@ -1,0 +1,33 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    # صفحة تسجيل الدخول (هي الصفحة الرئيسية حالياً)
+    path('', views.login_view, name='login'),
+    
+    # صفحة الخروج
+    path('logout/', views.logout_view, name='logout'),
+    
+    # دخول الضيوف
+    path('guest_login/', views.guest_login, name='guest_login'),
+
+    # واجهة المكتبة الرئيسية بعد الدخول
+    path('home/', views.home, name='home'),
+    
+    # لوحة تحكم الروت (Zero) لمراقبة الموقع
+    path('dashboard/', views.root_dashboard, name='root_dashboard'),
+
+    # روابط الأقسام (كهرباء، مدنية، ميكانيكا، كيمياء، طبية)
+    path('department/<str:dept_code>/', views.department_view, name='department'),
+    
+    # روابط السمسترات داخل كل قسم
+    path('department/<str:dept_code>/semester/<int:sem_id>/', views.semester_view, name='semester'),
+    
+    # صفحة المادة العلمية (الملفات والمنتدى)
+    path('course/<int:course_id>/', views.course_detail, name='course_detail'),
+
+    # روابط العمليات (تحميل الملفات وحذفها)
+    path('download/<int:file_id>/', views.download_file, name='download_file'),
+    path('delete_file/<int:file_id>/', views.delete_file, name='delete_file'),
+    path('add-user/', views.add_user_view, name='add_user'),
+]
