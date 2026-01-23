@@ -9,12 +9,33 @@ from .models import User, Course, Department, CourseFile, ForumPost, GuestLog
 import os
 
 def home(request):
-    departments = Department.objects.all()
-    # >>>>>>>>> بداية الإضافة الجديدة (السماح للزوار) >>>>>>>>>
+    # >>>>>>>>> بداية الإضافة الجديدة (دمج التحقق من الدخول والترحيب بالاسم) >>>>>>>>>
+    
+    # 1. التحقق من الهوية: إذا لم يكن عضواً مسجلاً وليس زائراً، يتم تحويله لصفحة الدخول
     if not request.user.is_authenticated and 'guest_name' not in request.session:
         return redirect('login')
+
+    # 2. جلب جميع الأقسام من قاعدة البيانات
+    departments = Department.objects.all()
+
+    # 3. تحديد الاسم الذي سيظهر في "الترحيب" (إذا كان طالب يأخذ اسمه الكامل، وإذا زائر يأخذ اسم الزائر)
+    if request.user.is_authenticated:
+        display_name = request.user.full_name  # الاسم الذي أضفناه في الموديل
+    else:
+        display_name = request.session.get('guest_name') # الاسم الذي سجله كزائر
+
+    # 4. وضع كل البيانات في "السياق" (context) لإرسالها لملف HTML
+    context = {
+        'departments': departments,
+        'user_name': display_name,
+    }
+    
     # <<<<<<<<< نهاية الإضافة الجديدة <<<<<<<<<
-    return render(request, 'library/home.html', {'departments': departments})
+    
+    return render(request, 'library/home.html', context)
+
+
+
 
 def login_view(request):
     if request.method == 'POST':
