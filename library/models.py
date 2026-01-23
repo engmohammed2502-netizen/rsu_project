@@ -1,7 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
-# 1. جدول المستخدمين (تم تحديثه لإضافة خاصية التجميد)
 class User(AbstractUser):
     USER_TYPES = (
         ('ROOT', 'Root'),
@@ -10,20 +9,23 @@ class User(AbstractUser):
     )
     user_type = models.CharField(max_length=10, choices=USER_TYPES, default='STUDENT')
     full_name = models.CharField(max_length=255, verbose_name="الاسم الكامل")
+    
+    # >>>>>>>>> بداية الإضافة الجديدة (تجميد الحساب) >>>>>>>>>
     is_frozen = models.BooleanField(default=False, verbose_name="تجميد الحساب")
+    # <<<<<<<<< نهاية الإضافة الجديدة <<<<<<<<<
 
     def __str__(self):
         return self.username
 
-# 2. سجل الزوار
+# >>>>>>>>> بداية الإضافة الجديدة (جدول الزوار) >>>>>>>>>
 class GuestLog(models.Model):
     name = models.CharField(max_length=255)
     entry_time = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.name} - {self.entry_time}"
+# <<<<<<<<< نهاية الإضافة الجديدة <<<<<<<<<
 
-# 3. الأقسام والمواد
 class Department(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
@@ -52,7 +54,7 @@ class CourseFile(models.Model):
     def __str__(self):
         return self.title
 
-# 4. المنتدى والتعليقات
+# >>>>>>>>> بداية الإضافة الجديدة (جدول المنتدى) >>>>>>>>>
 class ForumPost(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='comments')
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
@@ -63,3 +65,4 @@ class ForumPost(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+# <<<<<<<<< نهاية الإضافة الجديدة <<<<<<<<<
