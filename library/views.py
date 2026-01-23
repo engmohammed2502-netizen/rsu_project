@@ -1,161 +1,120 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.utils import timezone
-from django.http import HttpResponse, Http404
-from .models import User, Course, CourseFile, ForumPost, ForumReply, ActivityLog, DEPARTMENTS, SEMESTERS
+from django.http import FileResponse, Http404
+from .models import User, Course, Department, CourseFile, ForumPost, GuestLog
 import os
 
-# --- 1. دوال المساعدة (Helpers) ---
-def log_activity(user, action, request):
-    ip = request.META.get('REMOTE_ADDR')
-    ActivityLog.objects.create(user=user, action=action, ip_address=ip)
+# --- الصفحة الرئيسية ---
+def home(request):
+    departments = Department.objects.all()
+    # التحقق من جلسة الزائر أو تسجيل الدخول
+    if not request.user.is_authenticated and 'guest_name' not in request.session:
+        return redirect('login')
+    return render(request, 'library/home.html', {'departments': departments})
 
-def is_guest(request):
-    return request.session.get('is_guest', False)
-
-# --- 2. المصادقة (Auth) ---
+# --- تسجيل دخول الأعضاء ---
 def login_view(request):
-    if request.user.is_authenticated:
-        return redirect('home')
-        
     if request.method == 'POST':
-        user_id = request.POST.get('username') # الرقم الجامعي أو اسم الدكتور
+        username = request.POST.get('username')
         password = request.POST.get('password')
-        
-        # محاولة تسجيل الدخول
-        user = authenticate(request, username=user_id, password=password)
-        
+        user = authenticate(request, username=username, password=password)
         if user is not None:
             if user.is_frozen:
-                messages.error(request, 'عذراً، تم تجميد حسابك. الرجاء مراجعة الإدارة.')
+                messages.error(request, 'عذراً، حسابك مجمد. يرجى مراجعة إدارة الكلية.')
                 return redirect('login')
-                
             login(request, user)
-            log_activity(user, "تسجيل دخول", request)
-            
-            if user.user_type == 'ROOT':
-                return redirect('root_dashboard')
             return redirect('home')
         else:
-            # منطق التجميد المؤقت (بسيط) يمكن تطويره لاحقاً
-            messages.error(request, 'بيانات الدخول غير صحيحة')
-            
+            messages.error(request, 'اسم المستخدم أو كلمة المرور غير صحيحة')
     return render(request, 'library/login.html')
 
+# --- تسجيل دخول الزوار ---
 def guest_login(request):
     if request.method == 'POST':
         name = request.POST.get('guest_name')
-        # إعداد جلسة الضيف
-        request.session['is_guest'] = True
-        request.session['guest_name'] = name
-        request.session.set_expiry(1800) # 30 دقيقة
-        return redirect('home')
-    return redirect('login')
+        if name:
+            GuestLog.objects.create(name=name)
+            request.session['guest_name'] = name
+            return redirect('home')
+    return render(request, 'library/guest_login.html')
 
-def logout_view(request):
-    if request.user.is_authenticated:
-        log_activity(request.user, "تسجيل خروج", request)
-    logout(request)
-    request.session.flush()
-    return redirect('login')
+# --- عرض المواد حسب القسم والسمستر ---
+def department_view(request, dept_id):
+    dept = get_object_or_404(Department, id=dept_id)
+    semester = request.GET.get('semester')
+    courses = Course.objects.filter(department=dept, semester=semester) if semester else []
+    return render(request, 'library/department.html', {'dept': dept, 'courses': courses, 'semester': semester})
 
-# --- 3. الصفحات الرئيسية ---
-def home(request):
-    if not request.user.is_authenticated and not is_guest(request):
-        return redirect('login')
-        
-    context = {
-        'departments': DEPARTMENTS,
-        'user_name': request.session.get('guest_name', request.user.first_name if request.user.is_authenticated else "زائر")
-    }
-    return render(request, 'library/home.html', context)
-
-def department_view(request, dept_code):
-    if not request.user.is_authenticated and not is_guest(request):
-        return redirect('login')
-    
-    dept_name = dict(DEPARTMENTS).get(dept_code)
-    context = {'dept_code': dept_code, 'dept_name': dept_name, 'semesters': SEMESTERS}
-    return render(request, 'library/department.html', context)
-
-def semester_view(request, dept_code, sem_id):
-    if not request.user.is_authenticated and not is_guest(request):
-        return redirect('login')
-        
-    courses = Course.objects.filter(department=dept_code, semester=sem_id)
-    dept_name = dict(DEPARTMENTS).get(dept_code)
-    
-    context = {
-        'courses': courses,
-        'dept_name': dept_name,
-        'semester_name': f"السمستر {sem_id}"
-    }
-    return render(request, 'library/semester.html', context)
-
+# --- تفاصيل المادة والمنتدى والتحميل ---
 def course_detail(request, course_id):
-    if not request.user.is_authenticated and not is_guest(request):
+    course = get_object_or_404(Course, id=course_id)
+    if not request.user.is_authenticated and 'guest_name' not in request.session:
         return redirect('login')
         
-    course = get_object_or_404(Course, pk=course_id)
-    files = course.files.all().order_by('-upload_date')
-    posts = course.posts.all().order_by('-created_at')
-    
-    # التعامل مع رفع الملفات (للدكاترة والروت فقط)
-    if request.method == 'POST' and 'upload_file' in request.POST:
-        if request.user.is_authenticated and request.user.user_type in ['ADMIN', 'ROOT']:
-            new_file = CourseFile(
-                course=course,
-                title=request.POST.get('title'),
-                file_type=request.POST.get('file_type'),
-                file=request.FILES['file'],
-                uploaded_by=request.user
-            )
-            new_file.save()
-            course.last_update = timezone.now()
-            course.save()
-            messages.success(request, 'تم رفع الملف بنجاح')
-            
-    return render(request, 'library/course_detail.html', {'course': course, 'files': files, 'posts': posts})
+    context = {
+        'course': course,
+        'user_name': request.user.full_name if request.user.is_authenticated else request.session.get('guest_name')
+    }
+    return render(request, 'library/course_detail.html', context)
 
-# --- 4. لوحة تحكم الروت (Zero) ---
+# --- دالة إضافة تعليق للمنتدى ---
+def add_comment(request, course_id):
+    if request.method == 'POST':
+        course = get_object_or_404(Course, id=course_id)
+        content = request.POST.get('content')
+        parent_id = request.POST.get('parent_id')
+        
+        parent_obj = ForumPost.objects.get(id=parent_id) if parent_id else None
+        
+        # تحديد اسم الكاتب (عضو أو زائر)
+        user = request.user if request.user.is_authenticated else None
+        guest_name = request.session.get('guest_name') if not request.user.is_authenticated else None
+
+        if content:
+            ForumPost.objects.create(
+                course=course,
+                user=user,
+                guest_name=guest_name,
+                content=content,
+                parent=parent_obj
+            )
+    return redirect('course_detail', course_id=course_id)
+
+# --- دالة تحميل الملفات (لحل مشكلة التنزيل) ---
+def download_file(request, file_id):
+    course_file = get_object_or_404(CourseFile, id=file_id)
+    file_path = course_file.file.path
+    if os.path.exists(file_path):
+        return FileResponse(open(file_path, 'rb'), as_attachment=True)
+    else:
+        raise Http404("الملف غير موجود")
+
+# --- لوحة تحكم الروت ---
 @login_required
 def root_dashboard(request):
     if request.user.user_type != 'ROOT':
         return redirect('home')
-        
-    # الإحصائيات المطلوبة
-    stats = {
-        'students_count': User.objects.filter(user_type='STUDENT').count(),
-        'professors_count': User.objects.filter(user_type='ADMIN').count(),
-        'files_count': CourseFile.objects.count(),
-        'active_now': ActivityLog.objects.filter(timestamp__gte=timezone.now()-timezone.timedelta(minutes=5)).count(), # تقريبي
-    }
-    
-    logs = ActivityLog.objects.all().order_by('-timestamp')[:20]
-    
-    return render(request, 'library/dashboard.html', {'stats': stats, 'logs': logs})
+    return render(request, 'library/dashboard.html')
 
-# --- 5. تحميل الملفات ---
-def download_file(request, file_id):
-    if not request.user.is_authenticated and not is_guest(request):
-        return redirect('login')
-        
-    file_obj = get_object_or_404(CourseFile, pk=file_id)
-    file_path = file_obj.file.path
-    if os.path.exists(file_path):
-        with open(file_path, 'rb') as fh:
-            response = HttpResponse(fh.read(), content_type="application/octet-stream")
-            response['Content-Disposition'] = 'inline; filename=' + os.path.basename(file_path)
-            return response
-    raise Http404
-
+# --- إضافة مستخدم جديد ---
 @login_required
-def delete_file(request, file_id):
-    file_obj = get_object_or_404(CourseFile, pk=file_id)
-    # التحقق من الصلاحية (صاحب الملف أو الروت)
-    if request.user.user_type == 'ROOT' or request.user == file_obj.uploaded_by:
-        file_obj.delete()
-        messages.success(request, 'تم حذف الملف')
-    return redirect(request.META.get('HTTP_REFERER'))
+def add_user_view(request):
+    if request.user.user_type != 'ROOT':
+        return redirect('home')
+        
+    if request.method == 'POST':
+        try:
+            full_name = request.POST.get('full_name')
+            username = request.POST.get('username')
+            password = request.POST.get('password')
+            user_type = request.POST.get('user_type')
+            
+            user = User.objects.create_user(username=username, password=password, full_name=full_name, user_type=user_type)
+            messages.success(request, f'تم إضافة {full_name} بنجاح')
+            return redirect('root_dashboard')
+        except Exception as e:
+            messages.error(request, f'حدث خطأ: {e}')
+            
+    return render(request, 'library/add_user.html')
