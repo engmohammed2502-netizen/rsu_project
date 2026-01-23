@@ -1,0 +1,86 @@
+{% extends 'library/base.html' %}
+{% block content %}
+<div class="container py-4">
+    <div class="card shadow-sm mb-4 border-0">
+        <div class="card-body bg-light">
+            <h2 class="fw-bold text-primary">{{ course.name }}</h2>
+            <p class="text-muted">{{ course.description }}</p>
+            <span class="badge bg-secondary">{{ course.department.name }} - سمستر {{ course.semester }}</span>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        <h4 class="fw-bold mb-3">المحاضرات والملفات</h4>
+        {% for file in course.files.all %}
+        <div class="col-md-6 mb-3">
+            <div class="d-flex justify-content-between align-items-center p-3 bg-white border rounded shadow-sm">
+                <div>
+                    <i class="fas fa-file-pdf text-danger fa-2x me-3"></i>
+                    <span class="fw-bold">{{ file.title }}</span>
+                </div>
+                <a href="{% url 'download_file' file.id %}" class="btn btn-outline-primary btn-sm rounded-pill">
+                    <i class="fas fa-download me-1"></i> تحميل
+                </a>
+                </div>
+        </div>
+        {% empty %}
+        <p class="text-muted">لا توجد ملفات مرفوعة لهذه المادة حتى الآن.</p>
+        {% endfor %}
+    </div>
+
+    <hr>
+
+    <div class="forum-section mt-5">
+        <h4 class="fw-bold mb-4"><i class="fas fa-comments text-primary me-2"></i> ساحة النقاش</h4>
+        
+        <form method="POST" action="{% url 'add_comment' course.id %}" class="mb-5">
+            {% csrf_token %}
+            <div class="input-group">
+                <span class="input-group-text bg-light">أنت تكتب باسم: {{ user_name }}</span>
+                <textarea name="content" class="form-control" placeholder="اطرح سؤالاً..." rows="2" required></textarea>
+                <button class="btn btn-primary" type="submit">إرسال</button>
+            </div>
+        </form>
+
+        {% for comment in course.comments.all %}
+            {% if not comment.parent %}
+            <div class="d-flex mb-3">
+                <div class="flex-grow-1 ms-3 bg-white p-3 rounded shadow-sm">
+                    <div class="d-flex justify-content-between">
+                        <h6 class="fw-bold text-dark mb-1">
+                            {% if comment.user %}
+                                {{ comment.user.full_name }} <span class="badge bg-info text-dark">عضو</span>
+                            {% else %}
+                                {{ comment.guest_name }} <span class="badge bg-secondary">زائر</span>
+                            {% endif %}
+                        </h6>
+                        <small class="text-muted">{{ comment.created_at|timesince }}</small>
+                    </div>
+                    <p class="mb-2">{{ comment.content }}</p>
+                    
+                    {% for reply in comment.replies.all %}
+                        <div class="ms-4 mt-2 p-2 bg-light rounded border-start border-3 border-primary">
+                            <strong class="small">{% if reply.user %}{{ reply.user.full_name }}{% else %}{{ reply.guest_name }}{% endif %}:</strong>
+                            <span class="small">{{ reply.content }}</span>
+                        </div>
+                    {% endfor %}
+
+                    <button class="btn btn-link btn-sm p-0 mt-2" type="button" data-bs-toggle="collapse" data-bs-target="#replyBox{{ comment.id }}">رد</button>
+                    
+                    <div class="collapse mt-2" id="replyBox{{ comment.id }}">
+                        <form method="POST" action="{% url 'add_comment' course.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                            <div class="input-group input-group-sm">
+                                <input type="text" name="content" class="form-control" placeholder="اكتب ردك..." required>
+                                <button class="btn btn-outline-primary" type="submit">رد</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    </div>
+{% endblock %}
