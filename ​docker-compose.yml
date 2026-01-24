@@ -9,8 +9,8 @@ services:
       - static_volume:/app/static
       - media_volume:/app/media
     ports:
-      - "80:8000"
-      - "443:8000"
+      - "8080:8000"
+      
     depends_on:
       - db
     environment:
