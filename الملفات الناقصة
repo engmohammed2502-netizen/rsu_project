@@ -39,6 +39,56 @@ DB_PORT=5432
 
 
 
+
+
+@Codebase
+Act as a Senior Full Stack Engineer and DevOps Specialist. I need you to perform a comprehensive review and refactoring of this entire project.
+
+Please execute the following step-by-step plan:
+
+1. **Codebase Health Check & Fixes:**
+   - Scan all project files for logical conflicts, syntax errors, or incomplete code blocks.
+   - Identify any missing files that are referenced but not created, and generate them with appropriate boilerplate code.
+   - Refactor any code that causes circular imports or structure conflicts.
+
+2. **Feature Enhancement (Materials Management):**
+   - Locate the section where "Materials" (items/files) are listed.
+   - Add functional "Download" buttons and "Delete" buttons for each item.
+   - Ensure the backend logic supports these actions (delete route and download route).
+
+3. **Bug Fix (Login System):**
+   - Review the Login page logic (frontend and backend).
+   - Identify why the login might be failing (check authentication flow, session management, or token handling) and fix it.
+
+4. **Docker & Dependencies Synchronization:**
+   - Review the `docker-compose.yml` and `Dockerfile`.
+   - specific check: Cross-reference `requirements.txt` (or package.json) with the actual imports used in the code. Ensure ALL dependencies are listed and versions are compatible.
+   - Ensure the Docker setup is self-contained and ready to build without errors.
+
+5. **Deployment Guide:**
+   - After fixing the code, create a new file named `DEPLOYMENT.md`.
+   - Write a detailed guide in this file for deploying this specific Dockerized project on an **Ubuntu 22.04 LTS** server.
+   - The guide must include steps for:
+     - Installing Docker & Docker Compose on Ubuntu.
+     - Cloning the repo and setting environment variables.
+     - Commands to build and run the containers.
+     - How to expose the application to the internet (setup basic Nginx reverse proxy instructions if needed) and how to access it locally.
+
+**Output:**
+- Apply the code fixes directly to the files.
+- Explain briefly what you fixed.
+- Create the `DEPLOYMENT.md` file at the root.
+
+
+
+
+
+
+
+
+
+
+
 انشاء حساب الroot 
 
 
