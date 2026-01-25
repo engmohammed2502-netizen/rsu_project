@@ -31,6 +31,12 @@ cloudflared tunnel --url http://localhost:8000
 
 
 
+
+https://transcripts-guidance-payment-mil.trycloudflare.com 
+
+
+
+
   tunnel:
     image: cloudflare/cloudflared:latest
     command: tunnel --url http://web:8000  # استبدل web باسم خدمة الموقع في ملفك
