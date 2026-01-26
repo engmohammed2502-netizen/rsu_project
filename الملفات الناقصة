@@ -29,6 +29,19 @@ cloudflared --version
 
 cloudflared tunnel --url http://localhost:8000
 
+sudo apt update
+sudo apt install screen -y
+
+screen -S mytunnel
+
+الخروج مع تركها تعمل (Detach):
+اضغط على الأزرار التالية في الكيبورد بالترتيب:
+​اضغط Ctrl + A
+​ثم ارفع يدك واضغط حرف D
+​
+
+
+screen -r mytunnel
 
 
 
