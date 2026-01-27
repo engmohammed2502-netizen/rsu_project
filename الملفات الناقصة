@@ -1,4 +1,13 @@
 
+
+
+cd /var/www/engineering-library/client
+find src -type f -name "*.tsx" -exec sed -i "s/role !== 'guest'/(role as any) !== 'guest'/g" {} +
+
+
+
+
+
 # 1. إيقاف وحذف الحاويات مع الـ Volumes (سيحذف البيانات القديمة)
 sudo docker-compose down -v
 
