@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: sh -c "python manage.py makemigrations &&  python manage.py migrate && python manage.py create_root_user && gunicorn wsgi:application --bind 0.0.0.0:8000"
+    volumes:
+      - .:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    ports:
+      - "8080:8000"
+      
+    depends_on:
+      - db
+    environment:
+      - DJANGO_SECRET_KEY=change_this_secret_key_in_prod
+      - DJANGO_DEBUG=True
+      - DB_NAME=rsu_db
+      - DB_USER=rsu_user
+      - DB_PASSWORD=rsupassword
+      - DB_HOST=db
+
+  db:
+    image: postgres:13
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=rsu_db
+      - POSTGRES_USER=rsu_user
+      - POSTGRES_PASSWORD=rsupassword
+  
+  
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:
